@@ -17,7 +17,7 @@ html, body {
 
 .pixelWrap {
   min-height: 100vh;
-  padding: 3vh 3vw; /* ~3% inset border */
+  padding: 3vh 3vw;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -78,6 +78,11 @@ html, body {
   font-family: inherit;
 }
 
+.optionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .optionBtnSelected {
   background: var(--fg);
   color: var(--bg);
@@ -121,4 +126,60 @@ html, body {
   justify-content: space-between;
   gap: 10px;
   margin-top: 10px;
+}
+
+/* --- Visual Map Selector --- */
+
+.mapContainer {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.mapImage {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 2px solid var(--border);
+}
+
+.quadrantOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  pointer-events: none;
+}
+
+.quadrant {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+  transition: background 0.15s;
+}
+
+.quadrant:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.quadrantSelected {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: var(--fg);
+  border-width: 2px;
+}
+
+.quadrantDisabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+  pointer-events: auto;
 }
