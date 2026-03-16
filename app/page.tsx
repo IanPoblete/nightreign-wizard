@@ -3,7 +3,9 @@
 import React, { useMemo, useState } from "react";
 import { PATTERNS, type Pattern } from "@/lib/patterns";
 
-const PATTERN_BASE = process.env.NEXT_PUBLIC_NR_PATTERN_BASE ?? "";
+const PATTERN_BASE =
+  process.env.NEXT_PUBLIC_NR_PATTERN_BASE ??
+  "https://thefifthmatt.com/nightreign/pattern";
 
 function pad3(n: number) {
   return String(n).padStart(3, "0");
