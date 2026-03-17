@@ -50,10 +50,15 @@ function QuadrantMap({
   onSelect: (q: "TL" | "TR" | "BL" | "BR") => void;
   availableQuadrants: Set<string>;
 }) {
-  const mapSrc =
-    shiftingEarth === "Great Hollow"
-      ? "/maps/great-hollow.png"
-      : "/maps/base-map.png";
+  const mapImages: Record<string, string> = {
+    Default: "/maps/base-map.png",
+    Mountaintop: "/maps/mountaintop.png",
+    Crater: "/maps/crater.png",
+    "Rotted Woods": "/maps/rotted-woods.png",
+    Noklateo: "/maps/noklateo.png",
+    "Great Hollow": "/maps/great-hollow.png",
+  };
+  const mapSrc = mapImages[shiftingEarth] ?? "/maps/base-map.png";
 
   const quadrants: { key: "TL" | "TR" | "BL" | "BR"; label: string }[] = [
     { key: "TL", label: "Top Left" },
