@@ -3,6 +3,22 @@
 import React, { useMemo, useState } from "react";
 import { PATTERNS, type Pattern } from "@/lib/patterns";
 
+type LandmarkCategoryKey = "majorBase" | "minorBase" | "evergaol" | "fieldBoss";
+
+const LANDMARK_CATEGORIES: { label: string; key: LandmarkCategoryKey }[] = [
+  { label: "Major Base", key: "majorBase" },
+  { label: "Minor Base", key: "minorBase" },
+  { label: "Evergaol", key: "evergaol" },
+  { label: "Field Boss", key: "fieldBoss" },
+];
+
+type Landmark = {
+  category: string;
+  key: LandmarkCategoryKey;
+  location: string;
+  occupant: string;
+};
+
 const PATTERN_BASE =
   process.env.NEXT_PUBLIC_NR_PATTERN_BASE ??
   "https://thefifthmatt.com/nightreign/pattern";
@@ -96,7 +112,7 @@ export default function Home() {
   const [nightlord, setNightlord] = useState<string | null>(null);
   const [shiftingEarth, setShiftingEarth] = useState<string | null>(null);
   const [quadrant, setQuadrant] = useState<"TL" | "TR" | "BL" | "BR" | null>(null);
-  const [camp, setCamp] = useState<string | null>(null);
+  const [landmark, setLandmark] = useState<Landmark | null>(null);
   const [imgPos, setImgPos] = useState(0);
 
   const filtered = useMemo(() => {
@@ -104,9 +120,13 @@ export default function Home() {
     if (nightlord) p = p.filter((x) => x.nightlord === nightlord);
     if (shiftingEarth) p = p.filter((x) => x.shiftingEarth === shiftingEarth);
     if (quadrant) p = p.filter((x) => x.quadrant === quadrant);
-    if (camp) p = p.filter((x) => x.camp === camp || x.camp === null);
+    if (landmark) {
+      p = p.filter(
+        (x) => x.details === null || x.details[landmark.key]?.[landmark.location] === landmark.occupant
+      );
+    }
     return p;
-  }, [nightlord, shiftingEarth, quadrant, camp]);
+  }, [nightlord, shiftingEarth, quadrant, landmark]);
 
   const nightlords = useMemo(
     () => [...new Set(PATTERNS.map((p) => p.nightlord))],
@@ -131,32 +151,38 @@ export default function Home() {
     );
   }, [nightlord, shiftingEarth]);
 
-  const hasCampData = useMemo(() => {
-    if (!nightlord || !shiftingEarth || !quadrant) return false;
+  const quadrantCandidates = useMemo(() => {
+    if (!nightlord || !shiftingEarth || !quadrant) return [];
     return PATTERNS.filter(
       (p) =>
         p.nightlord === nightlord &&
         p.shiftingEarth === shiftingEarth &&
         p.quadrant === quadrant
-    ).some((p) => p.camp !== null);
+    );
   }, [nightlord, shiftingEarth, quadrant]);
 
-  const availableCamps = useMemo(() => {
-    if (!nightlord || !shiftingEarth || !quadrant) return [];
-    return [
-      ...new Set(
-        PATTERNS.filter(
-          (p) =>
-            p.nightlord === nightlord &&
-            p.shiftingEarth === shiftingEarth &&
-            p.quadrant === quadrant &&
-            p.camp !== null
-        ).map((p) => p.camp as string)
-      ),
-    ].sort();
-  }, [nightlord, shiftingEarth, quadrant]);
+  const availableLandmarks = useMemo(() => {
+    const seen = new Map<string, Landmark>();
+    for (const p of quadrantCandidates) {
+      if (!p.details) continue;
+      for (const { label, key } of LANDMARK_CATEGORIES) {
+        for (const [location, occupant] of Object.entries(p.details[key])) {
+          if (!occupant) continue;
+          const dedupeKey = `${key}|${location}|${occupant}`;
+          if (!seen.has(dedupeKey)) {
+            seen.set(dedupeKey, { category: label, key, location, occupant });
+          }
+        }
+      }
+    }
+    return [...seen.values()].sort(
+      (a, b) => a.category.localeCompare(b.category) || a.location.localeCompare(b.location)
+    );
+  }, [quadrantCandidates]);
 
-  const totalSteps = hasCampData ? 4 : 3;
+  const hasLandmarkData = availableLandmarks.length > 0;
+
+  const totalSteps = hasLandmarkData ? 4 : 3;
   const isLastStep = step === totalSteps - 1;
   const showResults = step >= totalSteps;
 
@@ -164,13 +190,13 @@ export default function Home() {
     if (step === 0) return !!nightlord;
     if (step === 1) return !!shiftingEarth;
     if (step === 2) return !!quadrant;
-    if (step === 3 && hasCampData) return !!camp;
+    if (step === 3 && hasLandmarkData) return !!landmark;
     return false;
-  }, [step, nightlord, shiftingEarth, quadrant, camp, hasCampData]);
+  }, [step, nightlord, shiftingEarth, quadrant, landmark, hasLandmarkData]);
 
   function next() {
     if (!canNext) return;
-    if (step === 2 && !hasCampData) {
+    if (step === 2 && !hasLandmarkData) {
       setStep(totalSteps);
     } else if (isLastStep) {
       setStep(totalSteps);
@@ -182,14 +208,14 @@ export default function Home() {
 
   function back() {
     if (showResults) {
-      if (hasCampData) {
+      if (hasLandmarkData) {
         setStep(3);
       } else {
         setStep(2);
       }
       return;
     }
-    if (step === 3 && !hasCampData) {
+    if (step === 3 && !hasLandmarkData) {
       setStep(2);
       return;
     }
@@ -201,7 +227,7 @@ export default function Home() {
     setNightlord(null);
     setShiftingEarth(null);
     setQuadrant(null);
-    setCamp(null);
+    setLandmark(null);
     setImgPos(0);
   }
 
@@ -220,9 +246,9 @@ export default function Home() {
                 Nightlord: {nightlord} <br />
                 Shifting Earth: {shiftingEarth} <br />
                 Spawn Quadrant: {quadrant} <br />
-                {camp && (
+                {landmark && (
                   <>
-                    First Camp: {camp} <br />
+                    {landmark.category}: {landmark.location} — {landmark.occupant} <br />
                   </>
                 )}
               </div>
@@ -302,7 +328,7 @@ export default function Home() {
                         setNightlord(n);
                         setShiftingEarth(null);
                         setQuadrant(null);
-                        setCamp(null);
+                        setLandmark(null);
                       }}
                     />
                   ))}
@@ -322,7 +348,7 @@ export default function Home() {
                       onClick={() => {
                         setShiftingEarth(se);
                         setQuadrant(null);
-                        setCamp(null);
+                        setLandmark(null);
                       }}
                     />
                   ))}
@@ -341,28 +367,35 @@ export default function Home() {
                   selected={quadrant}
                   onSelect={(q) => {
                     setQuadrant(q);
-                    setCamp(null);
+                    setLandmark(null);
                   }}
                   availableQuadrants={availableQuadrants}
                 />
               </>
             )}
 
-            {step === 3 && hasCampData && (
+            {step === 3 && hasLandmarkData && (
               <>
-                <div className="question">Step 4: First Camp</div>
+                <div className="question">Step 4: Nearby Landmark</div>
                 <div className="mini" style={{ marginBottom: 12 }}>
-                  What is near your spawn point?
+                  What do you see near your spawn point?
                 </div>
                 <div className="optionsList">
-                  {availableCamps.map((c) => (
-                    <OptionButton
-                      key={c}
-                      label={c}
-                      selected={camp === c}
-                      onClick={() => setCamp(c)}
-                    />
-                  ))}
+                  {availableLandmarks.map((l) => {
+                    const dedupeKey = `${l.key}|${l.location}|${l.occupant}`;
+                    return (
+                      <OptionButton
+                        key={dedupeKey}
+                        label={`${l.category}: ${l.location} — ${l.occupant}`}
+                        selected={
+                          landmark?.key === l.key &&
+                          landmark?.location === l.location &&
+                          landmark?.occupant === l.occupant
+                        }
+                        onClick={() => setLandmark(l)}
+                      />
+                    );
+                  })}
                 </div>
               </>
             )}
