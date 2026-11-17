@@ -2,22 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { PATTERNS, type Pattern } from "@/lib/patterns";
-
-type LandmarkCategoryKey = "majorBase" | "minorBase" | "evergaol" | "fieldBoss";
-
-const LANDMARK_CATEGORIES: { label: string; key: LandmarkCategoryKey }[] = [
-  { label: "Major Base", key: "majorBase" },
-  { label: "Minor Base", key: "minorBase" },
-  { label: "Evergaol", key: "evergaol" },
-  { label: "Field Boss", key: "fieldBoss" },
-];
-
-type Landmark = {
-  category: string;
-  key: LandmarkCategoryKey;
-  location: string;
-  occupant: string;
-};
+import { mapImageFor, spawnPointPosition } from "@/lib/spawnPoints";
 
 const PATTERN_BASE =
   process.env.NEXT_PUBLIC_NR_PATTERN_BASE ??
@@ -55,50 +40,36 @@ function OptionButton({
   );
 }
 
-function QuadrantMap({
+function SpawnMap({
   shiftingEarth,
+  spawnPoints,
   selected,
   onSelect,
-  availableQuadrants,
 }: {
   shiftingEarth: string;
-  selected: "TL" | "TR" | "BL" | "BR" | null;
-  onSelect: (q: "TL" | "TR" | "BL" | "BR") => void;
-  availableQuadrants: Set<string>;
+  spawnPoints: string[];
+  selected: string | null;
+  onSelect: (spawnPoint: string) => void;
 }) {
-  const mapImages: Record<string, string> = {
-    Default: "/maps/base-map.png",
-    Mountaintop: "/maps/mountaintop.png",
-    Crater: "/maps/crater.png",
-    "Rotted Woods": "/maps/rotted-woods.png",
-    Noklateo: "/maps/noklateo.png",
-    "Great Hollow": "/maps/great-hollow.png",
-  };
-  const mapSrc = mapImages[shiftingEarth] ?? "/maps/base-map.png";
-
-  const quadrants: { key: "TL" | "TR" | "BL" | "BR"; label: string }[] = [
-    { key: "TL", label: "Top Left" },
-    { key: "TR", label: "Top Right" },
-    { key: "BL", label: "Bottom Left" },
-    { key: "BR", label: "Bottom Right" },
-  ];
-
   return (
     <div className="mapContainer">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="mapImage" src={mapSrc} alt="Map" />
-      <div className="quadrantOverlay">
-        {quadrants.map((q) => {
-          const available = availableQuadrants.has(q.key);
+      <img className="mapImage" src={mapImageFor(shiftingEarth)} alt={`${shiftingEarth} map`} />
+      <div className="spawnOverlay">
+        {spawnPoints.map((sp) => {
+          const pos = spawnPointPosition(shiftingEarth, sp);
+          if (!pos) return null;
           return (
             <button
-              key={q.key}
-              className={`quadrant ${selected === q.key ? "quadrantSelected" : ""} ${!available ? "quadrantDisabled" : ""}`}
-              onClick={() => available && onSelect(q.key)}
+              key={sp}
               type="button"
-              disabled={!available}
+              className={`spawnCircle ${selected === sp ? "spawnCircleSelected" : ""}`}
+              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+              onClick={() => onSelect(sp)}
+              title={sp}
+              aria-label={`Spawned at ${sp}`}
             >
-              {q.label}
+              <span className="spawnLabel">{sp}</span>
             </button>
           );
         })}
@@ -107,26 +78,42 @@ function QuadrantMap({
   );
 }
 
+function campOptionsFor(
+  nightlord: string | null,
+  shiftingEarth: string | null,
+  spawnPoint: string | null
+): string[] {
+  if (!nightlord || !shiftingEarth || !spawnPoint) return [];
+  return [
+    ...new Set(
+      PATTERNS.filter(
+        (p) =>
+          p.nightlord === nightlord &&
+          p.shiftingEarth === shiftingEarth &&
+          p.spawnPoint === spawnPoint
+      )
+        .map((p) => p.camp)
+        .filter((c): c is string => c !== null)
+    ),
+  ].sort();
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [nightlord, setNightlord] = useState<string | null>(null);
   const [shiftingEarth, setShiftingEarth] = useState<string | null>(null);
-  const [quadrant, setQuadrant] = useState<"TL" | "TR" | "BL" | "BR" | null>(null);
-  const [landmark, setLandmark] = useState<Landmark | null>(null);
+  const [spawnPoint, setSpawnPoint] = useState<string | null>(null);
+  const [camp, setCamp] = useState<string | null>(null);
   const [imgPos, setImgPos] = useState(0);
 
   const filtered = useMemo(() => {
     let p: Pattern[] = PATTERNS;
     if (nightlord) p = p.filter((x) => x.nightlord === nightlord);
     if (shiftingEarth) p = p.filter((x) => x.shiftingEarth === shiftingEarth);
-    if (quadrant) p = p.filter((x) => x.quadrant === quadrant);
-    if (landmark) {
-      p = p.filter(
-        (x) => x.details === null || x.details[landmark.key]?.[landmark.location] === landmark.occupant
-      );
-    }
+    if (spawnPoint) p = p.filter((x) => x.spawnPoint === spawnPoint);
+    if (camp) p = p.filter((x) => x.camp === camp);
     return p;
-  }, [nightlord, shiftingEarth, quadrant, landmark]);
+  }, [nightlord, shiftingEarth, spawnPoint, camp]);
 
   const nightlords = useMemo(
     () => [...new Set(PATTERNS.map((p) => p.nightlord))],
@@ -142,63 +129,42 @@ export default function Home() {
     ];
   }, [nightlord]);
 
-  const availableQuadrants = useMemo(() => {
-    if (!nightlord || !shiftingEarth) return new Set<string>();
-    return new Set(
-      PATTERNS.filter(
-        (p) => p.nightlord === nightlord && p.shiftingEarth === shiftingEarth
-      ).map((p) => p.quadrant)
-    );
+  const availableSpawnPoints = useMemo(() => {
+    if (!nightlord || !shiftingEarth) return [];
+    return [
+      ...new Set(
+        PATTERNS.filter(
+          (p) => p.nightlord === nightlord && p.shiftingEarth === shiftingEarth
+        ).map((p) => p.spawnPoint)
+      ),
+    ];
   }, [nightlord, shiftingEarth]);
 
-  const quadrantCandidates = useMemo(() => {
-    if (!nightlord || !shiftingEarth || !quadrant) return [];
-    return PATTERNS.filter(
-      (p) =>
-        p.nightlord === nightlord &&
-        p.shiftingEarth === shiftingEarth &&
-        p.quadrant === quadrant
-    );
-  }, [nightlord, shiftingEarth, quadrant]);
+  const availableCamps = useMemo(
+    () => campOptionsFor(nightlord, shiftingEarth, spawnPoint),
+    [nightlord, shiftingEarth, spawnPoint]
+  );
 
-  const availableLandmarks = useMemo(() => {
-    const seen = new Map<string, Landmark>();
-    for (const p of quadrantCandidates) {
-      if (!p.details) continue;
-      for (const { label, key } of LANDMARK_CATEGORIES) {
-        for (const [location, occupant] of Object.entries(p.details[key])) {
-          if (!occupant) continue;
-          const dedupeKey = `${key}|${location}|${occupant}`;
-          if (!seen.has(dedupeKey)) {
-            seen.set(dedupeKey, { category: label, key, location, occupant });
-          }
-        }
-      }
-    }
-    return [...seen.values()].sort(
-      (a, b) => a.category.localeCompare(b.category) || a.location.localeCompare(b.location)
-    );
-  }, [quadrantCandidates]);
+  // The First Camp step only appears when it can tell patterns apart.
+  // DLC patterns have no camp data yet, and some spawn points only have
+  // one possible camp, so those go straight to results.
+  const hasCampStep = availableCamps.length > 1;
 
-  const hasLandmarkData = availableLandmarks.length > 0;
-
-  const totalSteps = hasLandmarkData ? 4 : 3;
+  const totalSteps = hasCampStep ? 4 : 3;
   const isLastStep = step === totalSteps - 1;
   const showResults = step >= totalSteps;
 
   const canNext = useMemo(() => {
     if (step === 0) return !!nightlord;
     if (step === 1) return !!shiftingEarth;
-    if (step === 2) return !!quadrant;
-    if (step === 3 && hasLandmarkData) return !!landmark;
+    if (step === 2) return !!spawnPoint;
+    if (step === 3 && hasCampStep) return !!camp;
     return false;
-  }, [step, nightlord, shiftingEarth, quadrant, landmark, hasLandmarkData]);
+  }, [step, nightlord, shiftingEarth, spawnPoint, camp, hasCampStep]);
 
   function next() {
     if (!canNext) return;
-    if (step === 2 && !hasLandmarkData) {
-      setStep(totalSteps);
-    } else if (isLastStep) {
+    if (isLastStep) {
       setStep(totalSteps);
     } else {
       setStep((s) => s + 1);
@@ -206,17 +172,18 @@ export default function Home() {
     setImgPos(0);
   }
 
+  function selectSpawnPoint(sp: string) {
+    setSpawnPoint(sp);
+    setCamp(null);
+    setImgPos(0);
+    // Step 3 is First Camp when that step applies, otherwise it's results,
+    // so a tap on the map always moves the player forward.
+    setStep(3);
+  }
+
   function back() {
     if (showResults) {
-      if (hasLandmarkData) {
-        setStep(3);
-      } else {
-        setStep(2);
-      }
-      return;
-    }
-    if (step === 3 && !hasLandmarkData) {
-      setStep(2);
+      setStep(hasCampStep ? 3 : 2);
       return;
     }
     if (step > 0) setStep((s) => s - 1);
@@ -226,8 +193,8 @@ export default function Home() {
     setStep(0);
     setNightlord(null);
     setShiftingEarth(null);
-    setQuadrant(null);
-    setLandmark(null);
+    setSpawnPoint(null);
+    setCamp(null);
     setImgPos(0);
   }
 
@@ -245,10 +212,10 @@ export default function Home() {
               <div className="mini">
                 Nightlord: {nightlord} <br />
                 Shifting Earth: {shiftingEarth} <br />
-                Spawn Quadrant: {quadrant} <br />
-                {landmark && (
+                Spawn Point: {spawnPoint} <br />
+                {camp && (
                   <>
-                    {landmark.category}: {landmark.location} — {landmark.occupant} <br />
+                    First Camp: {camp} <br />
                   </>
                 )}
               </div>
@@ -327,8 +294,8 @@ export default function Home() {
                       onClick={() => {
                         setNightlord(n);
                         setShiftingEarth(null);
-                        setQuadrant(null);
-                        setLandmark(null);
+                        setSpawnPoint(null);
+                        setCamp(null);
                       }}
                     />
                   ))}
@@ -347,8 +314,8 @@ export default function Home() {
                       selected={shiftingEarth === se}
                       onClick={() => {
                         setShiftingEarth(se);
-                        setQuadrant(null);
-                        setLandmark(null);
+                        setSpawnPoint(null);
+                        setCamp(null);
                       }}
                     />
                   ))}
@@ -360,42 +327,32 @@ export default function Home() {
               <>
                 <div className="question">Step 3: Spawn Point</div>
                 <div className="mini" style={{ marginBottom: 12 }}>
-                  Click the quadrant where you spawned
+                  Tap the circle where you landed
                 </div>
-                <QuadrantMap
+                <SpawnMap
                   shiftingEarth={shiftingEarth ?? "Default"}
-                  selected={quadrant}
-                  onSelect={(q) => {
-                    setQuadrant(q);
-                    setLandmark(null);
-                  }}
-                  availableQuadrants={availableQuadrants}
+                  spawnPoints={availableSpawnPoints}
+                  selected={spawnPoint}
+                  onSelect={selectSpawnPoint}
                 />
               </>
             )}
 
-            {step === 3 && hasLandmarkData && (
+            {step === 3 && hasCampStep && (
               <>
-                <div className="question">Step 4: Nearby Landmark</div>
+                <div className="question">Step 4: First Camp</div>
                 <div className="mini" style={{ marginBottom: 12 }}>
-                  What do you see near your spawn point?
+                  Which camp is at your landing spot?
                 </div>
                 <div className="optionsList">
-                  {availableLandmarks.map((l) => {
-                    const dedupeKey = `${l.key}|${l.location}|${l.occupant}`;
-                    return (
-                      <OptionButton
-                        key={dedupeKey}
-                        label={`${l.category}: ${l.location} — ${l.occupant}`}
-                        selected={
-                          landmark?.key === l.key &&
-                          landmark?.location === l.location &&
-                          landmark?.occupant === l.occupant
-                        }
-                        onClick={() => setLandmark(l)}
-                      />
-                    );
-                  })}
+                  {availableCamps.map((c) => (
+                    <OptionButton
+                      key={c}
+                      label={c}
+                      selected={camp === c}
+                      onClick={() => setCamp(c)}
+                    />
+                  ))}
                 </div>
               </>
             )}

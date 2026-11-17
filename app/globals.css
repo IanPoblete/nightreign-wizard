@@ -144,42 +144,53 @@ html, body {
   border: 2px solid var(--border);
 }
 
-.quadrantOverlay {
+.spawnOverlay {
   position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  inset: 2px;
+}
+
+.spawnCircle {
+  position: absolute;
+  width: 8%;
+  min-width: 34px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid #ffe14d;
+  background: rgba(255, 225, 77, 0.18);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 225, 77, 0.6);
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.spawnCircle:hover,
+.spawnCircle:focus-visible {
+  background: rgba(255, 225, 77, 0.5);
+  transform: translate(-50%, -50%) scale(1.15);
+  outline: none;
+}
+
+.spawnCircleSelected {
+  background: rgba(255, 225, 77, 0.75);
+  border-color: var(--fg);
+}
+
+.spawnLabel {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--fg);
+  text-shadow: 0 1px 3px #000, 0 0 6px #000, 0 0 2px #000;
   pointer-events: none;
 }
 
-.quadrant {
-  pointer-events: auto;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-shadow: 0 1px 3px #000, 0 0 8px #000;
-  transition: background 0.15s;
-}
-
-.quadrant:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.quadrantSelected {
-  background: rgba(255, 255, 255, 0.35);
-  border-color: var(--fg);
-  border-width: 2px;
-}
-
-.quadrantDisabled {
-  opacity: 0.2;
-  cursor: not-allowed;
-  pointer-events: auto;
+@media (max-width: 480px) {
+  .spawnLabel { display: none; }
 }
